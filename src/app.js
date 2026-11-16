@@ -17,4 +17,13 @@ app.use(express.urlencoded({ extended: true, limit: "16kb"}));
 app.use(express.static("public"));
 
 
+
+// routes import 
+
+import userRouter from "./routes/user.route.js";
+
+// routes declaration
+
+app.use("/api/v1/users", userRouter); //it pass the req like : https://localhost:5000/api/v1/users/register
+
 export default app;
