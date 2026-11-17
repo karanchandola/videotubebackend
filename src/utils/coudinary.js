@@ -7,11 +7,11 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET,
 })
 
-/**
+/**     
  * Upload a file to Cloudinary
  * @param {string} filePath - The path to the file to upload
  * @returns {Promise<Object>} - A promise that resolves to the upload result
- */
+ */ 
 
 export const uploadFileOnCloudinary = async(filePath) => {
     try {
