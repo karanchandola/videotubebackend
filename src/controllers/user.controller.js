@@ -1,9 +1,9 @@
-import { connectDB } from "../db/index.js";
-import User from "../models/user.models.js";
+import { User } from "../models/user.models.js";
 import ApiError from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asynchandler.js";
 import { uploadFileOnCloudinary } from "../utils/coudinary.js";
+import fs from "fs";
 
 const registerUser = asyncHandler(async (req, res) => {
     
@@ -71,6 +71,9 @@ const registerUser = asyncHandler(async (req, res) => {
     if(!userCreated){
         throw new ApiError(500, "Failed to create user");
     }
+
+    fs.unlinkSync(avatarLocalPath); // delete the file from local storage after successful upload
+    fs.unlinkSync(coverImageLocalPath);
 
     return res.status(201).json(
         new ApiResponse(201, "User registered successfully", userCreated)
