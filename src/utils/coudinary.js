@@ -30,3 +30,15 @@ export const uploadFileOnCloudinary = async(filePath) => {
         throw new Error(error.message);
     }
 }
+
+export const deleteFileFromCloudinary = async(publicId) => {
+    try {
+
+        if(!publicId) throw new Error("Public ID is required for deleting from Cloudinary");
+
+        const result = await cloudinary.uploader.destroy(publicId);
+        return result;
+    } catch (error) {
+        throw new Error(error.message);
+    }
+}
