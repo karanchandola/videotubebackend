@@ -4,9 +4,32 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asynchandler.js";
 import { deleteFileFromCloudinary, uploadFileOnCloudinary } from "../utils/coudinary.js";
 import Jwt from "jsonwebtoken";
+import crypto from "crypto";
+import { sendEmail } from "./userverification.controller.js";
+import { OTP } from "../models/otp.models.js";
+
+
+const generateAccessandRefreshTokens = async (userId) => {
+    try {
+        const user = await User.findById(userId);
+        if (!user) {
+            throw new ApiError(404, "User not found", ["userId"]);
+        }
+
+        const accessToken = user.generateAccessToken();
+        const refreshToken = user.generateRefreshToken();
+
+        user.refreshToken = refreshToken;
+        await user.save();
+
+        return { accessToken, refreshToken };
+
+    } catch (error) {
+        throw new ApiError(500, "Failed to generate access and refresh tokens", ["userId"]);
+    }
+}
 
 const registerUser = asyncHandler(async (req, res) => {
-
     // console.log("req.body", req.body);
 
     const { username, email, fullName, password } = req.body;
@@ -78,26 +101,6 @@ const registerUser = asyncHandler(async (req, res) => {
     )
 }
 )
-
-const generateAccessandRefreshTokens = async (userId) => {
-    try {
-        const user = await User.findById(userId);
-        if (!user) {
-            throw new ApiError(404, "User not found", ["userId"]);
-        }
-
-        const accessToken = user.generateAccessToken();
-        const refreshToken = user.generateRefreshToken();
-
-        user.refreshToken = refreshToken;
-        await user.save();
-
-        return { accessToken, refreshToken };
-
-    } catch (error) {
-        throw new ApiError(500, "Failed to generate access and refresh tokens", ["userId"]);
-    }
-}
 
 const loginUser = asyncHandler(async (req, res) => {
     /* todo :
@@ -217,7 +220,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
 })
 
-const changePassword = asyncHandler(async (req, res) => {
+const resetPasswordUsingOldPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body;
 
     if (!oldPassword || !newPassword) {
@@ -244,6 +247,72 @@ const changePassword = asyncHandler(async (req, res) => {
     )
 })
 
+const resetPasswordEmail = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+        throw new ApiError(400, "Email is required", ["email"]);
+    }
+
+    const OTP = crypto.randomInt(100000, 1000000).toString(); // Generate a 6-digit OTP
+
+    const subject = "Password Reset OTP";
+    const text = `<p>Your OTP for password reset is: <strong>${OTP}</strong>. OTP is only valid for 5 minutes.</p>`;
+
+    const emailResponse = await sendEmail(email, subject, text);
+
+    if (!emailResponse) {
+        throw new ApiError(500, "Failed to send password reset email");
+    }
+
+    const otpDocument = await OTP.findOneAndUpdate(
+        { email },
+        { otp: OTP },
+        { upsert: true, new: true }
+    )
+    if (!otpDocument) {
+        throw new ApiError(500, "Failed to create OTP document");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, "Password reset OTP sent successfully", { email })
+    )
+})
+
+const resetPasswordUsingOTP = asyncHandler(async (req, res) => {
+    const { otp , newPassword } = req.body;
+
+    if (!(otp && newPassword)) {
+        throw new ApiError(400, "Old password and new password are required", ["oldPassword", "newPassword"]);
+    }
+
+    const otpDocument = await OTP.findOne({ otp });
+
+    if (!otpDocument) {
+        throw new ApiError(400, "Invalid OTP", ["otp"]);
+    }
+
+    if(otpDocument.otp !== otp){
+        throw new ApiError(400, "Invalid OTP", ["otp"]);
+    }
+
+    const user = await User.findById(req.user?._id);
+
+    if (!user) {
+        throw new ApiError(404, "User not found", ["userId"]);
+    }
+
+    user.password = newPassword;
+    await user.save(); //here when we saving user data the pre save hook will be called and the password will be hashed before saving to the database
+
+    await otpDocument.deleteOne(); // Delete the OTP document after successful password reset
+
+    return res.status(200).json(
+        new ApiResponse(200, "Password changed successfully", {})
+    )
+})
+
+
 const getCurrentUser = asyncHandler(async (req, res) => {
     return res.status(200).json(
         new ApiResponse(200, "Current user fetched successfully", req.user)
@@ -251,6 +320,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 })
 
 // design update account details later based on the requirments.
+
 
 const updateUserAvatar = asyncHandler(async (req, res) => {
     try {
@@ -267,8 +337,8 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         }
 
         const updatedUser = await User.findByIdAndUpdate(req.user?._id, {
-                $set: { avatar: avatarUploadRes.secure_url }
-            }, { new: true, }
+            $set: { avatar: avatarUploadRes.secure_url }
+        }, { new: true, }
         ).select("-password -refreshToken"); // return the updated user document without password and refreshToken
 
         if (!updatedUser) {
@@ -309,8 +379,8 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         }
 
         const updatedUser = await User.findByIdAndUpdate(req.user?._id, {
-                $set: { coverImage: coverImageUploadRes.secure_url }
-            }, { new: true, }
+            $set: { coverImage: coverImageUploadRes.secure_url }
+        }, { new: true, }
         ).select("-password -refreshToken"); // return the updated user document without password and refreshToken
 
         if (!updatedUser) {
@@ -337,13 +407,15 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 })
 
 
-export { 
+export {
     registerUser,
-    loginUser, 
-    logoutUser, 
-    refreshAccessToken, 
-    changePassword, 
-    getCurrentUser, 
-    updateUserAvatar, 
-    updateUserCoverImage 
+    loginUser,
+    logoutUser,
+    refreshAccessToken,
+    resetPasswordEmail,
+    resetPasswordUsingOTP,
+    resetPasswordUsingOldPassword,
+    getCurrentUser,
+    updateUserAvatar,
+    updateUserCoverImage
 };

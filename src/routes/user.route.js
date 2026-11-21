@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { registerUser, logoutUser, loginUser, refreshAccessToken, changePassword, getCurrentUser, updateUserAvatar, updateUserCoverImage } from "../controllers/user.controller.js";
+import { registerUser, logoutUser, loginUser, refreshAccessToken, getCurrentUser, updateUserAvatar, updateUserCoverImage, resetPasswordUsingOldPassword, resetPasswordEmail, resetPasswordUsingOTP } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { sendVerificationEmail, verifyUser } from "../controllers/userverification.controller.js";
  
 const router = Router();
 
@@ -16,7 +17,18 @@ router.route("/register").post(
 
 router.route("/login").post( loginUser );
 
+
 // secured routes
+
+router.route("/verificationOTP").post(
+    verifyJWT,
+    sendVerificationEmail,
+)
+
+router.route("/verifyUser").post(
+    verifyJWT,
+    verifyUser,
+)
 
 router.route("/logout").post(
     verifyJWT,
@@ -27,9 +39,9 @@ router.route("/refreshToken").post(
     refreshAccessToken,
 )
 
-router.route("/changePassword").post(
+router.route("/resetPassword").post(
     verifyJWT,
-    changePassword,
+    resetPasswordUsingOldPassword,
 )
  
 router.route("/getCurrentUser").get(
@@ -47,6 +59,14 @@ router.route("/updateCoverImage").post(
     verifyJWT,
     upload.single("coverImage"),
     updateUserCoverImage,
+)
+
+router.route("/resetPasswordOTP").post(
+    resetPasswordEmail,
+)
+
+router.route("/resetPasswordUsingOTP").post(
+    resetPasswordUsingOTP,
 )
 
 export default router;

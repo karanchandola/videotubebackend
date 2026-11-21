@@ -37,6 +37,10 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: "https://res.cloudinary.com/dxj0gqv1f/image/upload/v1690911683/avatars/default-cover-image_ow6k7r.png",
     },
+    verified: {
+        type: Boolean,
+        default: false,
+    },
     refreshToken: {
         type: String,
         default: null,
