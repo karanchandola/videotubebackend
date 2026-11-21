@@ -268,7 +268,7 @@ const resetPasswordEmail = asyncHandler(async (req, res) => {
     const otpDocument = await OTP.findOneAndUpdate(
         { email },
         { otp: OTP },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: "after" }
     )
     if (!otpDocument) {
         throw new ApiError(500, "Failed to create OTP document");
