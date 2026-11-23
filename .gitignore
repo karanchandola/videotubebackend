@@ -131,3 +131,4 @@ dist
 ### Node Patch ###
 # Serverless Webpack directories
 .webpack/
+pract.html

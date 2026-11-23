@@ -7,6 +7,7 @@ import Jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { sendEmail } from "./userverification.controller.js";
 import { OTP } from "../models/otp.models.js";
+import mongoose from "mongoose";
 
 
 const generateAccessandRefreshTokens = async (userId) => {
@@ -280,7 +281,7 @@ const resetPasswordEmail = asyncHandler(async (req, res) => {
 })
 
 const resetPasswordUsingOTP = asyncHandler(async (req, res) => {
-    const { otp , newPassword } = req.body;
+    const { otp, newPassword } = req.body;
 
     if (!(otp && newPassword)) {
         throw new ApiError(400, "Old password and new password are required", ["oldPassword", "newPassword"]);
@@ -292,7 +293,7 @@ const resetPasswordUsingOTP = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid OTP", ["otp"]);
     }
 
-    if(otpDocument.otp !== otp){
+    if (otpDocument.otp !== otp) {
         throw new ApiError(400, "Invalid OTP", ["otp"]);
     }
 
@@ -349,7 +350,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
         const deleteprvAvatar = await deleteFileFromCloudinary(publicId);
 
-        console.log("deleteprvAvatar", deleteprvAvatar);
+        console.log("deleteprvAvatar", deleteprvAvatar); //check the response what it returns when the file is deleted successfully or not found or failed to delete. It will help to handle the error properly.
 
         if (deleteprvAvatar?.result !== "ok" && deleteprvAvatar?.result !== "not found") {
             throw new ApiError(500, "Failed to delete previous avatar image from Cloudinary");
@@ -407,6 +408,123 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 })
 
 
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+    const { username } = req.params;
+
+    if (!username || username?.trim() === "") {
+        throw new ApiError(400, "Username is required", ["username"]);
+    }
+
+    const channel = await User.aggregate([
+        {
+            $match: { username: username?.toLowerCase() }
+        },
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "channel",
+                as: "subscribers"
+            }
+        }, // in this we get list of all subscribers for the channel
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo"
+            }
+        }, // in this we get list of all channels to which the user is subscribed to
+        {
+            $addFields: {
+                subscriberCount: { $size: "$subscribers" },
+                subscribedToCount: { $size: "$subscribedTo" },
+                isSubscribed: {
+                    $cond: {
+                        if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+                        then: true,
+                        else: false
+                    }
+                }
+            }
+        },
+        {
+            $project: {
+                username: 1,
+                fullname: 1,
+                subscriberCount: 1,
+                subscribedToCount: 1,
+                isSubscribed: 1,
+                avatar: 1,
+                coverImage: 1,
+                email: 1,
+                createdAt: 1,
+            }
+        }
+    ])
+
+    console.log("channel", channel);
+
+    if(!channel?.length){
+        throw new ApiError(404, "Channel not found", ["username"]);
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, "Channel profile fetched successfully", channel[0])
+    )
+})
+
+const getWatchHistory = asyncHandler(async (req, res) => {
+    const user = await User.aggregate([
+        {
+            $match: {
+                _id: new mongoose.Types.ObjectId(req.user?._id) //we used mongoose.Types.ObjectId to convert the string id to ObjectId type
+            }
+        },
+        {
+            $lookup: {
+                from: "videos",
+                localField: "watchHistory",
+                foreignField: "_id",
+                as: "watchHistory",
+                pipeline: [
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "owner",
+                            foreignField: "_id",
+                            as: "owner",
+                            pipeline: [
+                                {
+                                    $project: {
+                                        username: 1,
+                                        fullName: 1,
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        $addFields: {
+                            owner: { $first: "$owner" } //we used $first to get the first element of the owner array because we know that there will be only one owner for each video
+                        }
+                    }
+                ]
+
+            }
+        }
+    ])
+
+    if(!user?.length){
+        throw new ApiError(404, "User not found", ["userId"]);
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, "Watch history fetched successfully", user[0].watchHistory)
+    )
+})
+
+
 export {
     registerUser,
     loginUser,
@@ -417,5 +535,7 @@ export {
     resetPasswordUsingOldPassword,
     getCurrentUser,
     updateUserAvatar,
-    updateUserCoverImage
+    updateUserCoverImage,
+    getUserChannelProfile,
+    getWatchHistory,
 };
