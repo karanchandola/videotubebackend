@@ -188,6 +188,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     }
 
     try {
+        
         const decodedToken = Jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET);
 
         const user = await User.findById(decodedToken?._id);
@@ -524,6 +525,23 @@ const getWatchHistory = asyncHandler(async (req, res) => {
     )
 })
 
+const deleteUserAccount = asyncHandler(async (req, res) => {
+    const userId = req.user?._id;
+
+    if (!userId) {
+        throw new ApiError(400, "User ID is required", ["userId"]);
+    }
+
+    const accountDeleted = await User.findByIdAndDelete(userId);
+
+    if (!accountDeleted) {
+        throw new ApiError(500, "Failed to delete user account", ["userId"]);
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, "User account deleted successfully", {})
+    )
+})
 
 export {
     registerUser,
@@ -538,4 +556,5 @@ export {
     updateUserCoverImage,
     getUserChannelProfile,
     getWatchHistory,
+    deleteUserAccount
 };
