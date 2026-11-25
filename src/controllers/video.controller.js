@@ -4,7 +4,6 @@ import ApiError from "../utils/ApiError";
 import { ApiResponse } from "../utils/ApiResponse";
 import { asyncHandler } from "../utils/asynchandler";
 import { deleteFileFromCloudinary, uploadFileOnCloudinary } from "../utils/coudinary";
-import { verifyJWT } from "../middlewares/auth.middleware";
 
 
 const uploadVideo = asyncHandler(async (req, res) => {
@@ -278,6 +277,22 @@ const getVideos = asyncHandler(async (req, res) => {
     );
 })
 
+const increaseViewsByOne = asyncHandler(async (req, res) => {
+    const { videoId } = req.params;
+
+    const video = await Video.findByIdAndUpdate(videoId, {
+        $inc: { views: 1 }
+    }, { new: true });
+
+    if(!video) {
+        res.status(404);
+        throw new Error("Video not found");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, "Video views increased successfully", { video })
+    )
+})
 
 export {
     uploadVideo,
@@ -286,4 +301,5 @@ export {
     getVideosById,
     deleteVideo,
     getVideosByOwner,
+    increaseViewsByOne
 }
