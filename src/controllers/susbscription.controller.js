@@ -11,7 +11,7 @@ const addSubscriber = asyncHandler(async (req, res) => {
 
     if (!channelId) {
         res.status(400);
-        throw new Error("Channel ID is required");
+        throw new ApiError(400, "Channel ID is required");
     }
 
     const subscription = await Subscription.create({
@@ -20,8 +20,8 @@ const addSubscriber = asyncHandler(async (req, res) => {
     })
 
     if (!subscription) {
-        res.status(500)
-        throw new ApiError(500, "Subscription failed")
+        res.status(500);
+        throw new ApiError(500, "Failed to create subscription");
     }
 
     res.status(201).json(
@@ -36,7 +36,7 @@ const removeSubscriber = asyncHandler(async (req, res) => {
 
     if (!channelId) {
         res.status(400);
-        throw new Error("Channel ID is required");
+        throw new ApiError(400, "Channel ID is required");
     }
 
     const subscription = await Subscription.findOneAndDelete({

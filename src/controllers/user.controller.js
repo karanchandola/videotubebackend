@@ -162,8 +162,8 @@ const loginUser = asyncHandler(async (req, res) => {
 
 const logoutUser = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(req.user._id, {
-        $set: { refreshToken: undefined },
-    }, { returnDocument: "after" });
+        $unset: { refreshToken: 1 },
+    }, { returnDocument: "after" }); // here we are unsetting the refreshToken field from the user document in the database when the user logs out, so that the refresh token is no longer valid and cannot be used to generate new access tokens.
 
     const cookieOptions = {
         httpOnly: true,
@@ -188,7 +188,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     }
 
     try {
-        
+
         const decodedToken = Jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET);
 
         const user = await User.findById(decodedToken?._id);
@@ -466,7 +466,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
 
     console.log("channel", channel);
 
-    if(!channel?.length){
+    if (!channel?.length) {
         throw new ApiError(404, "Channel not found", ["username"]);
     }
 
@@ -516,7 +516,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
         }
     ])
 
-    if(!user?.length){
+    if (!user?.length) {
         throw new ApiError(404, "User not found", ["userId"]);
     }
 
