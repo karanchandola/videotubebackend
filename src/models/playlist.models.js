@@ -15,6 +15,11 @@ const playlistSchema = new mongoose.Schema({
             ref: "Video",
         },
     ],
+    visibility: {
+        type: String,
+        enum: ["public", "private"],
+        default: "public",
+    },
     owner: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
