@@ -1,16 +1,17 @@
 import mongoose from "mongoose";
-import { Video } from "../models/video.models";
-import ApiError from "../utils/ApiError";
-import { ApiResponse } from "../utils/ApiResponse";
-import { asyncHandler } from "../utils/asynchandler";
-import { deleteFileFromCloudinary, uploadFileOnCloudinary } from "../utils/coudinary";
+import { Video } from "../models/video.models.js";
+import ApiError from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import { asyncHandler } from "../utils/asynchandler.js";
+import { deleteFileFromCloudinary, uploadFileOnCloudinary } from "../utils/coudinary.js";
+import { View } from "../models/views.model.js";
 
 
 const uploadVideo = asyncHandler(async (req, res) => {
     try {
-        const { title, description, duration, owner, isPublic } = req.body;
+        const { title, description, duration, isPublic } = req.body;
 
-        if (!title || !description || !duration || !owner || !req.file) {
+        if (!title || !description || !duration || !isPublic) {
             res.status(400);
             throw new Error("Please provide all required fields");
         }
@@ -44,11 +45,12 @@ const uploadVideo = asyncHandler(async (req, res) => {
             title,
             description,
             duration,
-            owner,
+            owner: req.user?._id,
             videoFile: isVideoUploaded.secure_url,
             thumbnail: isThumbnailUploaded.secure_url,
             isPublic: isPublic || true,
         })
+        console.log("Video document created successfully:", video);
 
         if (!video) {
             res.status(500);
@@ -177,19 +179,19 @@ const getVideoById = asyncHandler(async (req, res) => {
 })
 
 // here we are getting video for any user based on their id
-const getVideosById = asyncHandler(async (req, res) => {
-    const { ownerId } = req.params;
+const getVideosByChannelId = asyncHandler(async (req, res) => {
+    const { channelId } = req.params;
     const limit = parseInt(req.query?.limit) || 10; // default limit is 10
     const { lastId } = req.query;
 
-    if (!ownerId) {
+    if (!channelId) {
         res.status(400);
-        throw new Error("Owner ID is required");
+        throw new Error("Channel ID is required");
     }
 
     const query = lastId ? { _id: { $lt: lastId } } : {};
 
-    const videos = await Video.find({ owner: ownerId, isPublic: true, ...query })
+    const videos = await Video.find({ owner: channelId, isPublic: true, ...query })
         .limit(limit)
         .sort({ _id: -1 })
         .select("-owner -description -isPublic -updatedAt");
@@ -208,9 +210,12 @@ const getVideosById = asyncHandler(async (req, res) => {
 });
 
 const getVideosByOwner = asyncHandler(async (req, res) => {
-    
-    const videos = await Video.find({ owner: req.user?._id})
-        .select("-owner -description -updatedAt");
+    const { lastId, limit } = req.query;
+
+    const query = lastId ? { _id: { $lt: lastId } } : {};
+
+    const videos = await Video.find({ owner: req.user?._id, ...query })
+        .select("-owner -description -updatedAt").limit(parseInt(limit) || 10).sort({ _id: -1 });
 
     if (!videos || videos.length === 0) {
         res.status(404);
@@ -254,16 +259,21 @@ const getVideos = asyncHandler(async (req, res) => {
         },
         {
             $project: {
+                _id: 1,
                 title: 1,
                 views: 1,
                 duration: 1,
                 thumbnail: 1,
                 createdAt: 1,
+                videoFile: 1,
+                owner: 1,
             } // here we are not taking owner details in the response because we are already taking it in the previous step, so we don't need to take it again
         }
     ]).
         limit(limit)
         .sort({ _id: -1 });
+
+    console.log("Videos fetched successfully:", videos);
 
     if (!videos || videos.length === 0) {
         res.status(404);
@@ -280,11 +290,22 @@ const getVideos = asyncHandler(async (req, res) => {
 const increaseViewsByOne = asyncHandler(async (req, res) => {
     const { videoId } = req.params;
 
+    const viewLog = await View.findOneAndUpdate(
+        { video: videoId, user: req.user?._id },
+        { $setOnInsert: { video: videoId, user: req.user?._id } },
+        { upsert: true, returnDocument: "before" } // new: false gives us the state BEFORE the operation
+    );
+
+    if(viewLog) {
+        return res.status(200).json(
+            new ApiResponse(200, "View already logged for this user", { videoId })
+        )
+    }
     const video = await Video.findByIdAndUpdate(videoId, {
         $inc: { views: 1 }
-    }, { new: true });
+    }, { returnDocument: "after" });
 
-    if(!video) {
+    if (!video) {
         res.status(404);
         throw new Error("Video not found");
     }
@@ -294,12 +315,36 @@ const increaseViewsByOne = asyncHandler(async (req, res) => {
     )
 })
 
+const togglePublic = asyncHandler(async (req, res) => {
+    const { videoId } = req.params;
+
+    const video = await Video.findById(videoId);
+
+    if (!video) {
+        res.status(404);
+        throw new Error("Video not found");
+    }
+
+    if (video.owner.toString() !== req.user?._id.toString()) {
+        res.status(403);
+        throw new Error("You are not authorized to toggle the public status of this video");
+    }
+
+    video.isPublic = !video.isPublic;
+    await video.save();
+
+    return res.status(200).json(
+        new ApiResponse(200, "Video public status toggled successfully", { video })
+    )
+})
+
 export {
     uploadVideo,
     getVideoById,
     getVideos,
-    getVideosById,
+    getVideosByChannelId,
     deleteVideo,
     getVideosByOwner,
-    increaseViewsByOne
+    increaseViewsByOne,
+    togglePublic,
 }

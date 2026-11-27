@@ -2,17 +2,19 @@ import ApiError from "../utils/ApiError";
 import { Like } from "../models/likes.models";
 import { ApiResponse } from "../utils/ApiResponse";
 import { asyncHandler } from "../utils/asynchandler";
+import { Video } from "../models/video.models";
+import { Tweet } from "../models/tweets.models";
 
 
 const getLikes = asyncHandler(async (req, res) => {
-    const { videoId } = req.params;
+    const { targetId } = req.params;
 
-    if (!videoId) {
+    if (!targetId) {
         res.status(400);
-        throw new ApiError(400, "Video ID is required");
+        throw new ApiError(400, "Target ID is required");
     }
 
-    const likes = await Like.find({ targetId: videoId });
+    const likes = await Like.countDocuments({ targetId: targetId });
     res.status(200).json(
         new ApiResponse(200, "Likes retrieved successfully", likes)
     )
@@ -26,40 +28,36 @@ const setLikes = asyncHandler(async (req, res) => {
 
     if (!targetId || !type) {
         res.status(400);
-        throw new ApiError(400, "Video ID and type are required");
+        throw new ApiError(400, "Target ID and type are required");
     }
 
-    // switch (type) {
-    //     case "video":
-    //         const video = await Video.findById(targetId);
-    //         if (!video) {
-    //             res.status(404);
-    //             throw new ApiError(404, "Video not found");
-    //         }
-    //         break;
-    //     case "comment":
-    //         const comment = await Comment.findById(targetId);
-    //         if (!comment) {
-    //             res.status(404);
-    //             throw new ApiError(404, "Comment not found");
-    //         }
-    //         break;
-    //     case "tweet":
-    //         const tweet = await Tweet.findById(targetId);
-    //         if (!tweet) {
-    //             res.status(404);
-    //             throw new ApiError(404, "Tweet not found");
-    //         }
-    //         break;
-    //     default: 
-    //         throw new ApiError(400, "Invalid type. Type must be either video, comment, or tweet");
-    // } 
-    // we can use switch case method also this is simple but we are going with model's custom validation method because we have already defined the enum in the model so we don't need to check it here again.
-
-    if(type !== "Video" && type !== "Comment" && type !== "Tweet") {
-        res.status(400);
-        throw new ApiError(400, "Invalid type. Type must be either Video, Comment, or Tweet");
+    switch (type) {
+        case "Video":
+            const video = await Video.exists({ _id: targetId });
+            if (!video) {
+                res.status(404);
+                throw new ApiError(404, "Video not found");
+            }
+            break;
+        case "Comment":
+            const comment = await Comment.exists({ _id: targetId });
+            if (!comment) {
+                res.status(404);
+                throw new ApiError(404, "Comment not found");
+            }
+            break;
+        case "Tweet":
+            const tweet = await Tweet.exists({ _id: targetId });
+            if (!tweet) {
+                res.status(404);
+                throw new ApiError(404, "Tweet not found");
+            }
+            break;
+        default:
+            res.status(400);
+            throw new ApiError(400, "Invalid type. Type must be either video, comment, or tweet");
     }
+
 
     const like = await Like.create({
         likeBy: userId,
@@ -84,7 +82,7 @@ const removeLikes = asyncHandler(async (req, res) => {
 
     if (!targetId) {
         res.status(400);
-        throw new ApiError(400, "Video ID is required");
+        throw new ApiError(400, "Target ID is required");
     }
 
     const like = await Like.findOneAndDelete({ likeBy: userId, targetId: targetId }); // we are not passing type here because every obj. contain idv. _id, so we can find the like by userId and targetId only.
@@ -99,11 +97,27 @@ const removeLikes = asyncHandler(async (req, res) => {
     )
 })
 
+const getLikedContent = asyncHandler(async (req, res) => {
+    const userId = req.user?._id;
+
+    const likedContent = await Like.find({ likeBy: userId }).populate("targetId");
+
+    if (!likedContent) {
+        res.status(404);
+        throw new ApiError(404, "No liked content found for the user");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, "Liked content retrieved successfully", likedContent)
+    )
+})
+
 
 export {
     getLikes,
     setLikes,
     removeLikes,
+    getLikedContent,
 }
 
 

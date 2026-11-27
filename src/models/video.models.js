@@ -34,8 +34,7 @@ const videoSchema = new mongoose.Schema({
     isPublic: {
         type: Boolean,
         default: true,
-    }
-
+    },
 }, { timestamps: true });
 
 

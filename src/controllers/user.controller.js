@@ -256,12 +256,14 @@ const resetPasswordEmail = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Email is required", ["email"]);
     }
 
-    const OTP = crypto.randomInt(100000, 1000000).toString(); // Generate a 6-digit OTP
+    const OTp = crypto.randomInt(100000, 1000000).toString(); // Generate a 6-digit OTP
 
     const subject = "Password Reset OTP";
-    const text = `<p>Your OTP for password reset is: <strong>${OTP}</strong>. OTP is only valid for 5 minutes.</p>`;
+    const text = `<p>Your OTP for password reset is: <strong>${OTp}</strong>. OTP is only valid for 5 minutes.</p>`;
 
     const emailResponse = await sendEmail(email, subject, text);
+
+    console.log("otp : ", OTp);
 
     if (!emailResponse) {
         throw new ApiError(500, "Failed to send password reset email");
@@ -269,9 +271,10 @@ const resetPasswordEmail = asyncHandler(async (req, res) => {
 
     const otpDocument = await OTP.findOneAndUpdate(
         { email },
-        { otp: OTP },
+        { otp: OTp, createdAt: new Date() },
         { upsert: true, returnDocument: "after" }
     )
+
     if (!otpDocument) {
         throw new ApiError(500, "Failed to create OTP document");
     }
@@ -282,23 +285,27 @@ const resetPasswordEmail = asyncHandler(async (req, res) => {
 })
 
 const resetPasswordUsingOTP = asyncHandler(async (req, res) => {
-    const { otp, newPassword } = req.body;
+    const { email, otp, newPassword } = req.body;
 
-    if (!(otp && newPassword)) {
-        throw new ApiError(400, "Old password and new password are required", ["oldPassword", "newPassword"]);
+    if (!email || !otp || !newPassword) {
+        throw new ApiError(400, "Email, OTP and new password are required", ["email", "otp", "newPassword"]);
     }
 
-    const otpDocument = await OTP.findOne({ otp });
+    const otpDocument = await OTP.findOne({ email: email });
+
+    console.log("otpDocument", otpDocument);
 
     if (!otpDocument) {
         throw new ApiError(400, "Invalid OTP", ["otp"]);
     }
 
-    if (otpDocument.otp !== otp) {
+    if (otpDocument.otp !== otp.toString()) {
         throw new ApiError(400, "Invalid OTP", ["otp"]);
     }
 
-    const user = await User.findById(req.user?._id);
+    const user = await User.findOne({ email: otpDocument.email });
+
+    console.log("user", user);
 
     if (!user) {
         throw new ApiError(404, "User not found", ["userId"]);
