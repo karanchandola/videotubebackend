@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
-import { addVideoToPlaylist, createPlaylist, deletePlaylist, getPlaylistById, getPlaylistsByOwner, getVideosFromPlaylist } from "../controllers/playlist.controllers.js";
+import { addVideoToPlaylist, createPlaylist, deletePlaylist, getPlaylistById, getPlaylistsByOwner, getVideosFromPlaylist, updatePlaylist } from "../controllers/playlist.controllers.js";
 
 const router = Router();
 
@@ -34,6 +34,9 @@ router.route("/deletePlaylist/:playlistId").delete(
     deletePlaylist,
 )
 
-
+router.route("/updatePlaylist/:playlistId").put(
+    verifyJWT,
+    updatePlaylist,
+)
 
 export default router;
